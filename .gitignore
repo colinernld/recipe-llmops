@@ -1,0 +1,10 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+.chainlit/
+.files/
+chainlit.md
+pipeline.yaml
+data/*.jsonl
+!data/sample_recipes.jsonl
