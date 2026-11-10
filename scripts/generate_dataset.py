@@ -226,6 +226,8 @@ def gemini_generator(model: str, project: str, location: str) -> Generate:
         temperature=1.0,
         response_mime_type="application/json",
         response_schema=RECIPE_SCHEMA,
+        # Réflexion réduite : environ 3,7 fois moins cher.
+        thinking_config=types.ThinkingConfig(thinking_level="LOW"),
     )
 
     def generate(prompt: str) -> dict:
