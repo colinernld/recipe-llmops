@@ -81,6 +81,8 @@ def recette_frigo_pipeline(
             max_samples=predict_samples,
         )
     ).set_display_name("Prédiction Phi-3 seul")
+    # Un seul GPU à la fois : le quota T4 du projet est limité.
+    baseline.after(predicted)
 
     evaluate_model(
         finetuned_predictions=predicted.outputs["predictions"],
