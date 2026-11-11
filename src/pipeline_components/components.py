@@ -7,6 +7,8 @@ from kfp.dsl import Dataset, Input, Metrics, Model, Output
 
 CORE = str(Path(__file__).resolve().parents[1] / "shared")
 CPU_IMAGE = "python:3.11-slim-bookworm"
+# Image PyTorch officielle : elle indique où trouver le pilote GPU de la machine.
+GPU_IMAGE = "pytorch/pytorch:2.3.1-cuda12.1-cudnn8-runtime"
 GPU_PACKAGES = [
     "torch==2.3.1",
     "transformers==4.48.0",
@@ -56,7 +58,7 @@ def format_dataset(
     write_jsonl(format_rows(read_jsonl(input_data.path)), output_data.path)
 
 
-@dsl.component(base_image=CPU_IMAGE, packages_to_install=GPU_PACKAGES, embedded_artifact_path=CORE)
+@dsl.component(base_image=GPU_IMAGE, packages_to_install=GPU_PACKAGES, embedded_artifact_path=CORE)
 def fine_tune_model(
     core: dsl.EmbeddedInput[dsl.Artifact],
     train_data: Input[Dataset],
@@ -87,7 +89,7 @@ def fine_tune_model(
     model.metadata["base_model"] = base_model
 
 
-@dsl.component(base_image=CPU_IMAGE, packages_to_install=GPU_PACKAGES, embedded_artifact_path=CORE)
+@dsl.component(base_image=GPU_IMAGE, packages_to_install=GPU_PACKAGES, embedded_artifact_path=CORE)
 def predict_finetuned(
     core: dsl.EmbeddedInput[dsl.Artifact],
     test_data: Input[Dataset],
@@ -103,7 +105,7 @@ def predict_finetuned(
     write_jsonl(predict_rows(rows, base_model, model.path), predictions.path)
 
 
-@dsl.component(base_image=CPU_IMAGE, packages_to_install=GPU_PACKAGES, embedded_artifact_path=CORE)
+@dsl.component(base_image=GPU_IMAGE, packages_to_install=GPU_PACKAGES, embedded_artifact_path=CORE)
 def predict_baseline(
     core: dsl.EmbeddedInput[dsl.Artifact],
     test_data: Input[Dataset],
