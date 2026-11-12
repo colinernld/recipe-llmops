@@ -5,7 +5,7 @@ Seuls les ingrédients se tapent au clavier. Tout le reste se choisit avec des b
 
 import chainlit as cl
 
-from src.recipe_service import generate_recipe, get_backend, send_feedback
+from src.recipe_service import generate_recipe, get_backend, log_blocked_request, send_feedback
 from src.shared.recette_core.contract import APPLIANCE_NAMES_EN, check_input, split_list
 
 TITLE = "".join(
@@ -84,8 +84,9 @@ TEXTS = {
         "warning": "⚠️ **Contraintes non respectées :**",
         "cooked": "🍳 Je l'ai cuisinée",
         "another": "🔁 Autre recette",
-        "rated": "Noté {}/5. Un commentaire ? Écris-le, ou passe.",
-        "skip": "Passer",
+        "rated": "Noté {}/5. Merci ! Tu peux ajouter un commentaire, ou écrire un nouveau frigo.",
+        "comment_button": "💬 Commenter",
+        "comment_prompt": "Écris ton commentaire sur cette recette.",
         "thanks": "Merci pour ton retour !",
         "enjoy": "Bon appétit ! 🍽️",
         "switch": "🇬🇧 English",
@@ -114,8 +115,9 @@ TEXTS = {
         "warning": "⚠️ **Constraints not met:**",
         "cooked": "🍳 I cooked it",
         "another": "🔁 Another recipe",
-        "rated": "Rated {}/5. Any comment? Type it, or skip.",
-        "skip": "Skip",
+        "rated": "Rated {}/5. Thanks! You can add a comment, or type a new fridge.",
+        "comment_button": "💬 Comment",
+        "comment_prompt": "Type your comment about this recipe.",
         "thanks": "Thanks for your feedback!",
         "enjoy": "Enjoy your meal! 🍽️",
         "switch": "🇫🇷 Français",
@@ -249,6 +251,12 @@ async def finish_with_cuisine(cuisine: str) -> None:
         f"{raw_ingredients}, {cuisine}", ", ".join(appliances), minutes, language()
     )
     if problems:
+        log_blocked_request(
+            f"{raw_ingredients} | {', '.join(appliances)} | {minutes} min | {cuisine}",
+            problems,
+            session.get("id"),
+            language(),
+        )
         session.set("step", "fridge")
         await cl.Message(content=" ".join(problems) + f"\n\n{texts()['again']}").send()
         return
@@ -390,19 +398,23 @@ async def on_other_cuisine(action: cl.Action) -> None:
 async def on_rate(action: cl.Action) -> None:
     stars, trace_id = action.payload["stars"], action.payload["trace_id"]
     send_feedback(trace_id, "user_rating", stars)
-    cl.user_session.set("rated_trace", trace_id)
-    cl.user_session.set("step", "comment")
+    # L'étape reste « fridge » : un nouveau frigo tapé ici n'est jamais pris pour un commentaire.
     await cl.Message(
         content=texts()["rated"].format(stars),
-        actions=[cl.Action(name="skip_comment", label=texts()["skip"], payload={})],
+        actions=[
+            cl.Action(
+                name="add_comment", label=texts()["comment_button"], payload={"trace_id": trace_id}
+            )
+        ],
     ).send()
 
 
-@cl.action_callback("skip_comment")
-async def on_skip(action: cl.Action) -> None:
-    cl.user_session.set("step", "fridge")
+@cl.action_callback("add_comment")
+async def on_add_comment(action: cl.Action) -> None:
+    cl.user_session.set("rated_trace", action.payload["trace_id"])
+    cl.user_session.set("step", "comment")
     await action.remove()
-    await cl.Message(content=texts()["again"]).send()
+    await cl.Message(content=texts()["comment_prompt"]).send()
 
 
 @cl.action_callback("cooked")

@@ -10,7 +10,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
-from langfuse import get_client, observe
+from langfuse import Langfuse, get_client, observe
+from opentelemetry.sdk.trace import TracerProvider
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src" / "shared"))
@@ -24,6 +25,11 @@ from recette_core.contract import (  # noqa: E402
     to_markdown,
 )
 from src.constants import ENDPOINT_ID, PROJECT_ID, REGION  # noqa: E402
+
+# Langfuse reçoit son propre TracerProvider : sans lui, il s'abonne au fournisseur
+# OpenTelemetry global et récupère aussi les spans internes de Chainlit (requêtes
+# FastAPI, GET /user...), qui noient les traces de recettes.
+Langfuse(tracer_provider=TracerProvider())
 
 PARAMETERS = {"max_new_tokens": 450, "temperature": 0.8, "top_p": 0.9, "do_sample": True}
 MAX_ATTEMPTS = 2
@@ -69,8 +75,13 @@ class DemoBackend:
         return ModelReply(text=random.choice(rows)["recipe"], model="demo", version="0")
 
 
+def is_demo() -> bool:
+    """Vrai si l'application tourne sans le modèle déployé."""
+    return os.getenv("DEMO_MODE") == "1" or not ENDPOINT_ID
+
+
 def get_backend() -> ModelBackend:
-    if os.getenv("DEMO_MODE") == "1" or not ENDPOINT_ID:
+    if is_demo():
         return DemoBackend()
     return VertexBackend(ENDPOINT_ID)
 
@@ -128,9 +139,11 @@ def generate_recipe(
     langfuse = get_client()
     user_prompt = build_user_prompt(ingredients, appliances, max_minutes, language, cuisine)
     prompt = format_prompt(user_prompt, language)
-    langfuse.update_current_trace(
-        session_id=session_id, input=user_prompt, tags=[language, cuisine]
-    )
+    tags = [language, cuisine]
+    if isinstance(backend, DemoBackend):
+        # Sépare les recettes préécrites des vraies dans les tableaux de bord.
+        tags.append("demo")
+    langfuse.update_current_trace(session_id=session_id, input=user_prompt, tags=tags)
 
     text, report = "", {}
     attempts = 0
@@ -160,6 +173,17 @@ def generate_recipe(
         display = f"{display}\n\n{FOOD_SAFETY_NOTES[language]}"
     trace_id = langfuse.get_current_trace_id()
     return RecipeResult(display, trace_id, report, attempts, warnings, reply.model == "demo")
+
+
+@observe(name="Demande bloquée")
+def log_blocked_request(raw_input: str, problems: list[str], session_id: str, language: str) -> None:
+    """Trace une demande refusée par le garde-fou d'entrée, pour compter les blocages."""
+    langfuse = get_client()
+    tags = [language, "blocked"] + (["demo"] if is_demo() else [])
+    langfuse.update_current_trace(
+        session_id=session_id, input=raw_input, output=" ".join(problems), tags=tags
+    )
+    langfuse.score_current_trace(name="blocked", value=1.0)
 
 
 def send_feedback(trace_id: str | None, name: str, value: float, comment: str | None = None) -> None:
