@@ -1,0 +1,99 @@
+/* Recette Frigo : la porte du frigo. Les boutons sont des aimants, le titre en lettres aimantées. */
+:root {
+  --ink: #15323a;
+  --tomato: #e2412f;
+  --mustard: #f2b51e;
+  --basil: #2e8b57;
+  --plum: #6b3fa0;
+  --sky: #2f80ed;
+  --magnet-shadow: 3px 3px 0 var(--ink);
+}
+.dark {
+  --ink: #e3efea;
+  --magnet-shadow: 3px 3px 0 #000;
+}
+
+/* Titre en lettres aimantées, affiché dans le message d'accueil. */
+.magnets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15em;
+  margin: 0.2em 0 0.5em;
+  font-family: "Rubik", sans-serif;
+  font-weight: 800;
+  font-size: clamp(2.2rem, 7vw, 3.6rem);
+  line-height: 1;
+}
+.magnets span {
+  display: inline-block;
+  color: var(--c);
+  transform: rotate(var(--r));
+  text-shadow: 2px 2px 0 rgba(21, 50, 58, 0.25);
+}
+.magnets .gap { width: 0.35em; }
+.magnets span:nth-child(5n + 1) { --c: var(--tomato); --r: -6deg; }
+.magnets span:nth-child(5n + 2) { --c: var(--sky); --r: 4deg; }
+.magnets span:nth-child(5n + 3) { --c: var(--mustard); --r: -3deg; }
+.magnets span:nth-child(5n + 4) { --c: var(--basil); --r: 7deg; }
+.magnets span:nth-child(5n + 5) { --c: var(--plum); --r: -5deg; }
+
+.ai-message .prose h2,
+.ai-message .prose h3 {
+  font-family: "Rubik", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.ai-message .prose h2 { font-size: 1.6rem; margin-top: 0.2em; }
+.ai-message .prose h3 { font-size: 1.1rem; }
+
+/* La recette : une fiche épinglée sur la porte. */
+.ai-message .message-content:has(h2) {
+  background: hsl(var(--card));
+  border: 2px solid var(--ink);
+  border-radius: 1.25rem;
+  box-shadow: 6px 6px 0 var(--ink);
+  padding: 1.25rem 1.5rem;
+  max-width: 44rem;
+}
+
+/* Les choix : des aimants qu'on attrape et qu'on pose. */
+.ai-message .flex-wrap > button:not(:has(svg)) {
+  height: auto;
+  margin: 0.3rem 0.45rem 0.3rem 0;
+  padding: 0.5rem 0.95rem;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  font-size: 0.95rem;
+  font-weight: 700;
+  box-shadow: var(--magnet-shadow);
+  transition: transform 80ms ease, box-shadow 80ms ease, background 80ms ease;
+}
+.ai-message .flex-wrap > button:not(:has(svg)):hover {
+  background: hsl(var(--card));
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+.ai-message .flex-wrap > button:not(:has(svg)):active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+.ai-message .flex-wrap > button.is-on,
+.ai-message .flex-wrap > button.is-on:hover {
+  background: var(--mustard);
+  color: #15323a;
+}
+.ai-message .flex-wrap > button.is-go,
+.ai-message .flex-wrap > button.is-go:hover {
+  background: var(--ink);
+  color: hsl(var(--background));
+}
+.ai-message .flex-wrap > button:focus-visible {
+  outline: 3px solid var(--mustard);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ai-message .flex-wrap > button { transition: none; }
+}
