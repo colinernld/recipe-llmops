@@ -65,6 +65,8 @@ class VertexBackend:
 class DemoBackend:
     """Recettes écrites à la main, pour tester l'interface sans endpoint."""
 
+    tags = ["demo"]
+
     def __init__(self):
         sample = ROOT / "data" / "sample_recipes.jsonl"
         self.rows = [json.loads(line) for line in sample.read_text(encoding="utf-8").splitlines()]
@@ -139,10 +141,8 @@ def generate_recipe(
     langfuse = get_client()
     user_prompt = build_user_prompt(ingredients, appliances, max_minutes, language, cuisine)
     prompt = format_prompt(user_prompt, language)
-    tags = [language, cuisine]
-    if isinstance(backend, DemoBackend):
-        # Sépare les recettes préécrites des vraies dans les tableaux de bord.
-        tags.append("demo")
+    # Un backend peut marquer ses traces (« demo », « replay ») pour les filtrer.
+    tags = [language, cuisine, *getattr(backend, "tags", [])]
     langfuse.update_current_trace(session_id=session_id, input=user_prompt, tags=tags)
 
     text, report = "", {}
