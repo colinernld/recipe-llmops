@@ -7,4 +7,5 @@ __pycache__/
 chainlit.md
 pipeline.yaml
 data/*.jsonl
+!data/eval/
 !data/sample_recipes.jsonl
