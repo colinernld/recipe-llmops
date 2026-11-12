@@ -109,6 +109,8 @@ Les retours utilisateur sont rattachés à la trace exacte de la recette notée.
 10. **Demandes bloquées invisibles.** Le garde-fou d'entrée (injection de prompt, produit non comestible, saisie trop longue) refusait la demande avant toute trace : impossible de compter les tentatives d'injection. Chaque refus crée maintenant une trace « Demande bloquée ».
 11. **Recettes de démo mélangées aux vraies.** Les recettes préécrites du mode démo n'étaient pas distinguées. Elles portent maintenant le tag `demo`, à exclure des tableaux de bord.
 12. **Commentaire enregistré par erreur.** Après une note, tout texte tapé était enregistré comme commentaire, même un nouveau frigo, et aucune recette ne démarrait. Le commentaire passe maintenant par un bouton « 💬 Commenter ».
+13. **Aucun GPU T4 disponible.** Deux déploiements de l'endpoint ont échoué le 12 novembre (16 h 22 et 16 h 50) avec l'erreur `503 Machine type temporarily unavailable`, en `n1-standard-8` puis en `n1-standard-4` : rupture de stock de T4 en `europe-west2`, sans lien avec notre code. Les endpoints vides ont été supprimés, sans coût.
+14. **Plan B : replay des prédictions.** `scripts/replay_predictions.py` fait passer dans Langfuse les 100 recettes réellement générées par le modèle fine-tuné pendant le pipeline, avec les mêmes contrôles et traces qu'en production (tag `replay`, session `replay-20261112-1725`). Résultat : 98 recettes sur 100 respectent les 3 contraintes, comme l'évaluation hors ligne. Limites : la latence n'est pas mesurée (pas d'appel GPU) et il n'y a ni relance ni note utilisateur.
 
 Deux tests ont été ajoutés (tag `demo`, trace des demandes bloquées) : 85 tests passent.
 
@@ -122,6 +124,7 @@ En mode démo, l'application renvoie une recette préécrite sans lien avec la d
 - Pas de juge LLM (cohérence culinaire, sécurité alimentaire) dans Langfuse : il demanderait une connexion à Gemini depuis le serveur Langfuse.
 - Langfuse tourne sur une seule machine. En production, il serait hébergé sur un serveur ou en service managé.
 - Le 12 novembre à 16 h, l'endpoint `2352191822370963456` n'apparaît plus dans `gcloud ai endpoints list` : la série de tests avec le vrai modèle reste à faire.
+- La latence réelle et les retours utilisateurs sur le vrai modèle restent à mesurer, si un GPU T4 se libère avant la présentation.
 
 ## Coûts estimés
 
