@@ -16,6 +16,7 @@ Les coûts indiqués sont des estimations calculées à partir des tarifs public
 | Évaluation sur 100 frigos de test | 98 % des recettes respectent les 3 contraintes, contre 0 % pour Phi-3 seul | Vertex AI Experiments, `recette-frigo` / `evaluation-phi3-lora-v1` |
 | Model Registry | Modèle `8819739119274950656`, version 1 | Vertex AI Model Registry |
 | Endpoint | Test de déploiement en cours le 12 novembre | Endpoint `2352191822370963456` |
+| Monitoring Langfuse | Traces, scores automatiques et retours utilisateur en place, testés en mode démo | Langfuse local, projet `recette frigo` |
 
 ## Résultats de l'évaluation
 
@@ -81,6 +82,49 @@ Le fine-tuning de l'exécution `20261111105036` a duré environ 10 heures, soit 
 6. **Évaluation en échec dans le cloud.** Les logs étaient vides, donc la cause exacte n'est pas confirmée. Le juge Gemini, jamais testé en conditions réelles, est le suspect principal. Les autres métriques ont été calculées en local.
 7. **Projet partagé.** D'autres groupes utilisent le même projet : les commandes de logs doivent filtrer sur l'identifiant de notre job, sinon elles mélangent les entraînements.
 8. **Bucket hors projet.** Vertex AI signale que `ebcrjg-llmops` n'appartient pas au projet. Sans conséquence : le pipeline y lit et y écrit normalement.
+
+## Monitoring avec Langfuse
+
+### 12 novembre : mise en place
+
+- Langfuse lancé en local avec Docker (`docker compose up -d`) : 7 services, dont Postgres, ClickHouse, Redis et MinIO.
+- Le serveur installé est en version 4 (v4.79.0 OSS), alors que le projet utilise le SDK Python 3.15 et que le cours a été écrit pour la v3. La connexion fonctionne (`auth_check()` renvoie `True`) et les traces arrivent normalement.
+- Premiers tests en mode démo (`DEMO_MODE=1`), sans endpoint, donc sans coût GPU.
+
+### Ce qui est tracé
+
+| Élément Langfuse | Contenu |
+| --- | --- |
+| Trace « Demande de recette » | Demande de l'utilisateur, recette finale, session Chainlit, tags langue et cuisine, nombre de tentatives |
+| Génération « Génération Phi-3 » | Prompt complet, réponse brute, modèle, version et paramètres de génération ; une génération par tentative |
+| Scores automatiques | `format_ok`, `ingredients_ok`, `appliances_ok`, `time_ok`, `all_ok`, calculés à chaque recette |
+| Retours utilisateur | `user_rating` (1 à 5 étoiles), `user_comment`, `cooked` (« Je l'ai cuisinée »), `regenerated` (« Autre recette ») |
+| Trace « Demande bloquée » | Demande refusée par le garde-fou d'entrée, avec le tag `blocked` et le score `blocked` |
+
+Les retours utilisateur sont rattachés à la trace exacte de la recette notée. Les signaux « cuisinée » et « régénérée » servent de vérité terrain sans demander d'effort à l'utilisateur.
+
+### Problèmes rencontrés et changements faits
+
+9. **Traces polluées par Chainlit.** Le SDK Langfuse v3 s'abonne par défaut à tout OpenTelemetry. Il récupérait donc les requêtes internes de Chainlit (`fastapi.endpoint`, `GET /user`…) : sur 17 traces, seules 7 étaient des demandes de recette, ce qui faussait la latence et les volumes. Langfuse reçoit maintenant son propre `TracerProvider`.
+10. **Demandes bloquées invisibles.** Le garde-fou d'entrée (injection de prompt, produit non comestible, saisie trop longue) refusait la demande avant toute trace : impossible de compter les tentatives d'injection. Chaque refus crée maintenant une trace « Demande bloquée ».
+11. **Recettes de démo mélangées aux vraies.** Les recettes préécrites du mode démo n'étaient pas distinguées. Elles portent maintenant le tag `demo`, à exclure des tableaux de bord.
+12. **Commentaire enregistré par erreur.** Après une note, tout texte tapé était enregistré comme commentaire, même un nouveau frigo, et aucune recette ne démarrait. Le commentaire passe maintenant par un bouton « 💬 Commenter ».
+13. **Aucun GPU T4 disponible.** Deux déploiements de l'endpoint ont échoué le 12 novembre (16 h 22 et 16 h 50) avec l'erreur `503 Machine type temporarily unavailable`, en `n1-standard-8` puis en `n1-standard-4` : rupture de stock de T4 en `europe-west2`, sans lien avec notre code. Les endpoints vides ont été supprimés, sans coût.
+14. **Plan B : replay des prédictions.** `scripts/replay_predictions.py` fait passer dans Langfuse les 100 recettes réellement générées par le modèle fine-tuné pendant le pipeline, avec les mêmes contrôles et traces qu'en production (tag `replay`, session `replay-20261112-1725`). Résultat : 98 recettes sur 100 respectent les 3 contraintes, comme l'évaluation hors ligne. Limites : la latence n'est pas mesurée (pas d'appel GPU) et il n'y a ni relance ni note utilisateur.
+
+Deux tests ont été ajoutés (tag `demo`, trace des demandes bloquées) : 85 tests passent.
+
+### Ce que montrent les premiers tests
+
+En mode démo, l'application renvoie une recette préécrite sans lien avec la demande. Les contrôles détectent le problème (`all_ok = 0`), le service relance une génération (`attempts = 2`), puis l'utilisateur est averti des contraintes non respectées. La chaîne garde-fou, relance, alerte et trace fonctionne donc de bout en bout.
+
+### Limites
+
+- Pas de coût par requête : l'endpoint est facturé à l'heure, et non au token.
+- Pas de juge LLM (cohérence culinaire, sécurité alimentaire) dans Langfuse : il demanderait une connexion à Gemini depuis le serveur Langfuse.
+- Langfuse tourne sur une seule machine. En production, il serait hébergé sur un serveur ou en service managé.
+- Le 12 novembre à 16 h, l'endpoint `2352191822370963456` n'apparaît plus dans `gcloud ai endpoints list` : la série de tests avec le vrai modèle reste à faire.
+- La latence réelle et les retours utilisateurs sur le vrai modèle restent à mesurer, si un GPU T4 se libère avant la présentation.
 
 ## Coûts estimés
 
