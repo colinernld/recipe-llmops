@@ -10,9 +10,9 @@ from src.shared.recette_core.contract import APPLIANCE_NAMES_EN, check_input, sp
 
 TITLE = "".join(
     '<span class="gap"></span>' if letter == " " else f"<span>{letter}</span>"
-    for letter in "Recette Frigo"
+    for letter in "FridgeChef"
 )
-MAGNET_TITLE = f'<div class="magnets" aria-label="Recette Frigo">{TITLE}</div>'
+MAGNET_TITLE = f'<div class="magnets" aria-label="FridgeChef">{TITLE}</div>'
 
 # Appareils présents dans le dataset, avec leur nom canonique en clé.
 APPLIANCES = {
